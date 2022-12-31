@@ -45,7 +45,7 @@ func (d *Drawer) Init() {
 	}
 
 	//初始画布刷新时间为1s
-	d.Interval = time.Second
+	d.Interval = time.Millisecond * 800
 
 	//初始化蛇结构
 	d.Snake = &Snake{}
@@ -124,8 +124,15 @@ func (d *Drawer) Clean() {
 
 // 根据算法更新画布的刷新时间
 func (d *Drawer) refreshInterval() {
-	bodyLen := time.Duration(len(d.Snake.Body) * 20)
-	d.Interval = d.Interval - bodyLen*time.Millisecond
+	sub := time.Duration(0)
+	if d.Interval > 400*time.Millisecond {
+		sub = 50
+	} else if d.Interval > 200*time.Millisecond {
+		sub = 25
+	} else {
+		sub = 10
+	}
+	d.Interval = d.Interval - sub*time.Millisecond
 	if d.Interval < 100*time.Millisecond {
 		d.Interval = 100 * time.Millisecond
 	}
