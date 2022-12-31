@@ -2,32 +2,25 @@ package main
 
 import (
 	"fmt"
-	"github.com/eiannone/keyboard"
 	"math"
-	"math/rand"
 	"os"
 	"os/exec"
 	"time"
 )
 
 type Drawer struct {
-	Drawer [][]string
-	Body   []Location
-	Header Location
-	Length int
-	Direct keyboard.Key
-	Action chan keyboard.Key
-	Food   Location
-}
-
-type Location struct {
-	X int
-	Y int
+	Drawer   [][]string
+	Height   int
+	Width    int
+	Food     Location
+	Interval time.Duration
+	Snake    *Snake
+	Used     []Location
 }
 
 func (d *Drawer) Print() {
-	for i := 0; i < d.Length; i++ {
-		for j := 0; j < d.Length; j++ {
+	for i := 0; i < d.Height; i++ {
+		for j := 0; j < d.Width; j++ {
 			fmt.Print(d.Drawer[i][j])
 		}
 		fmt.Println()
@@ -35,82 +28,79 @@ func (d *Drawer) Print() {
 	fmt.Println()
 }
 
+// Init 初始化
 func (d *Drawer) Init() {
-	if d.Length > math.MaxInt {
-		d.Length = math.MaxInt
+	//画布大小限制
+	if d.Height > math.MaxInt {
+		d.Width = math.MaxInt
 	}
-	for i := 0; i < d.Length; i++ {
+
+	//初始化画布
+	for i := 0; i < d.Height; i++ {
 		var tmpLine []string
-		for j := 0; j < d.Length; j++ {
+		for j := 0; j < d.Width; j++ {
 			tmpLine = append(tmpLine, " * ")
 		}
 		d.Drawer = append(d.Drawer, tmpLine)
 	}
+
+	//初始画布刷新时间为1s
+	d.Interval = time.Second
+
+	//初始化蛇结构
+	d.Snake = &Snake{}
+	//初始化蛇的运行方向
+	d.Snake.RandomDirect()
+	//初始化蛇
+	d.Snake.Init(d.Height, d.Width)
+	//蛇的身体放入画布已经使用的位置集合
+	d.AddUsed(d.Snake.Header, " $ ")
+	//生成第一个食物
+	d.newFood()
+	d.Print()
 }
 
-func (d *Drawer) InitHeader() {
-	d.newHeader(d.RandomLocation())
+// AddUsed 添加位置到已使用的位置集合中
+func (d *Drawer) AddUsed(l Location, c string) {
+	d.Used = append(d.Used, l)
+	d.Drawer[l.X][l.Y] = c
 }
 
-func (d *Drawer) IsBody(l Location) bool {
-	for i := 0; i < len(d.Body); i++ {
-		if d.Body[i].X == l.X && d.Body[i].Y == l.Y {
-			return true
-		}
-	}
-	return false
-}
+// Run 运行
+func (d *Drawer) Run() {
+	//贪吃蛇蛇头的下一个位置
+	l := d.Snake.NextLocation()
 
-func (d *Drawer) IsHeader(l Location) bool {
-	if d.Header.X == l.X && d.Header.Y == l.Y {
-		return true
-	}
-	return false
-}
+	//判断下一个位置是否是正常的位置,如果是撞墙或者是吃到自己的身体,则死亡,游戏结束
+	d.Snake.CheckDied(l, d.Height, d.Width)
 
-func (d *Drawer) newHeader(l Location) {
-	d.Header = l
-	d.Body = append([]Location{l}, d.Body...)
+	//新位置成为蛇头
+	d.Snake.NewHeader(l)
+	//画布蛇身体相应位置的字符更新为` $ `
 	d.Drawer[l.X][l.Y] = " $ "
-}
 
-func (d *Drawer) removeTail() {
-	d.Body = d.Body[:len(d.Body)-1]
-}
-
-func (d *Drawer) MoveDirect() {
-	x := -1
-	y := -1
-	if d.Direct == keyboard.KeyArrowUp {
-		x, y = d.Header.X+1, d.Header.Y
-	} else if d.Direct == keyboard.KeyArrowDown {
-		x, y = d.Header.X-1, d.Header.Y
-	}
-	if d.Direct == keyboard.KeyArrowRight {
-		x, y = d.Header.X, d.Header.Y+1
-	}
-	if d.Direct == keyboard.KeyArrowLeft {
-		x, y = d.Header.X, d.Header.Y-1
-	}
-
-	l := Location{x, y}
-	d.die(l)
-	d.newHeader(l)
-
+	//如果下一个位置是食物,则加入身体,蛇的尾部不用去除
+	//否则需要去掉蛇身体的最后一个元素
 	if !d.IsFood(l) {
-		d.removeTail()
+		d.Drawer[d.Snake.Body[len(d.Snake.Body)-1].X][d.Snake.Body[len(d.Snake.Body)-1].Y] = " * "
+		d.Snake.RemoveTail()
 	} else {
+		//蛇吃掉食物以后,需要新生成一个食物
 		d.newFood()
+		//蛇吃掉食物以后,自身长度增加,运行时间间隔需要减小,以加快蛇运行的速度
+		d.refreshInterval()
 	}
+	//每运动一步,需要刷新画布,达到运行的视觉效果
+	d.Refresh()
 }
 
-func (d *Drawer) die(l Location) {
-	if l.X < 0 || l.X >= d.Length || l.Y < 0 || l.Y >= d.Length {
-		fmt.Println("die")
-		os.Exit(1)
-	}
+// Refresh 清屏,然后打印新的画布内容
+func (d *Drawer) Refresh() {
+	d.Clean()
+	d.Print()
 }
 
+// IsFood 判断当前位置是否是食物
 func (d *Drawer) IsFood(l Location) bool {
 	if d.Food.X == l.X && d.Food.Y == l.Y {
 		return true
@@ -119,51 +109,24 @@ func (d *Drawer) IsFood(l Location) bool {
 	return false
 }
 
-func (d *Drawer) SetDirect(direct keyboard.Key) {
-	d.Direct = direct
-}
-
-func (d *Drawer) RandomDirect() {
-	rand.Seed(time.Now().Unix())
-	r := rand.Intn(3)
-	if r == 0 {
-		d.Direct = keyboard.KeyArrowUp
-		return
-	}
-	if r == 1 {
-		d.Direct = keyboard.KeyArrowDown
-		return
-	}
-	if r == 2 {
-		d.Direct = keyboard.KeyArrowLeft
-		return
-	}
-	if r == 3 {
-		d.Direct = keyboard.KeyArrowRight
-		return
-	}
-}
-
-func (d *Drawer) RandomLocation() Location {
-	rand.Seed(time.Now().Unix())
-	x := rand.Intn(d.Length)
-	y := rand.Intn(d.Length)
-
-	for i := 0; i < len(d.Body); i++ {
-		if d.Body[i].X == x || d.Body[i].Y == y {
-			d.RandomLocation()
-		}
-	}
-	return Location{x, y}
-}
-
+// 生成食物
 func (d *Drawer) newFood() {
-	d.Food = d.RandomLocation()
-	d.Drawer[d.Food.X][d.Food.Y] = " @ "
+	d.Food = RandomLocationWithExtra(d.Height, d.Width, d.Used)
+	d.AddUsed(d.Food, " @ ")
 }
 
+// Clean 画布清屏
 func (d *Drawer) Clean() {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout
 	cmd.Run()
+}
+
+// 根据算法更新画布的刷新时间
+func (d *Drawer) refreshInterval() {
+	bodyLen := time.Duration(len(d.Snake.Body) * 20)
+	d.Interval = d.Interval - bodyLen*time.Millisecond
+	if d.Interval < 100*time.Millisecond {
+		d.Interval = 100 * time.Millisecond
+	}
 }
