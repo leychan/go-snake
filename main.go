@@ -26,7 +26,6 @@ func main() {
 
 	//贪吃蛇持续运行,画布每隔一段时间就刷新,直到贪吃蛇死亡
 	for {
-		d.Clean()
 		d.Run()
 		time.Sleep(d.Interval)
 	}

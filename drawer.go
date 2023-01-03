@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"os/exec"
 	"time"
@@ -15,8 +16,12 @@ type Drawer struct {
 	Food     Location
 	Interval time.Duration
 	Snake    *Snake
-	Used     []Location
+	Unused   []Location
 }
+
+const FoodSTR = " @ "
+const SnakeBody = " * "
+const DrawerSTR = " - "
 
 func (d *Drawer) Print() {
 	for i := 0; i < d.Height; i++ {
@@ -39,31 +44,62 @@ func (d *Drawer) Init() {
 	for i := 0; i < d.Height; i++ {
 		var tmpLine []string
 		for j := 0; j < d.Width; j++ {
-			tmpLine = append(tmpLine, " * ")
+			tmpLine = append(tmpLine, DrawerSTR)
+			d.Unused = append(d.Unused, Location{i, j})
 		}
 		d.Drawer = append(d.Drawer, tmpLine)
 	}
 
-	//初始画布刷新时间为1s
+	d.Clear()
+	d.Print()
+
+	//初始画布刷新时间为800ms
 	d.Interval = time.Millisecond * 800
 
 	//初始化蛇结构
 	d.Snake = &Snake{}
-	//初始化蛇的运行方向
-	d.Snake.RandomDirect()
 	//初始化蛇
-	d.Snake.Init(d.Height, d.Width)
+	l := d.RandomUnusedLocation()
+	d.newSnakeHeader(l)
+	d.Snake.Init()
+
 	//蛇的身体放入画布已经使用的位置集合
-	d.AddUsed(d.Snake.Header, " $ ")
+	d.removeFromUnused(d.Snake.Header)
 	//生成第一个食物
 	d.newFood()
-	d.Print()
 }
 
-// AddUsed 添加位置到已使用的位置集合中
-func (d *Drawer) AddUsed(l Location, c string) {
-	d.Used = append(d.Used, l)
-	d.Drawer[l.X][l.Y] = c
+// RefreshLocation 刷新当前位置的元素
+func (d *Drawer) RefreshLocation(l Location, c string) {
+	cmdStr := fmt.Sprintf(`tput civis && tput sc && tput cup %d %d && echo "%s" && tput rc`, l.X, l.Y*3, c)
+	cmd := exec.Command("/bin/bash", "-c", cmdStr)
+	cmd.Stdout = os.Stdout
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
+}
+
+// RemoveSnakeTail 去掉当前贪吃蛇的尾部
+func (d *Drawer) RemoveSnakeTail() {
+	d.RefreshLocation(d.Snake.Tail, DrawerSTR)
+	d.Snake.RemoveTail()
+	d.Unused = append(d.Unused, d.Snake.Tail)
+}
+
+// 新位置更新为蛇头
+func (d *Drawer) newSnakeHeader(l Location) {
+	d.RefreshLocation(l, SnakeBody)
+	d.Snake.NewHeader(l)
+	d.removeFromUnused(l)
+}
+
+// 清除当前屏幕
+func (d *Drawer) Clear() {
+	cmd := exec.Command("/bin/bash", "-c", "tput cup 0 0 && tput ed")
+	cmd.Stdout = os.Stdout
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
 }
 
 // Run 运行
@@ -75,29 +111,18 @@ func (d *Drawer) Run() {
 	d.Snake.CheckDied(l, d.Height, d.Width)
 
 	//新位置成为蛇头
-	d.Snake.NewHeader(l)
-	//画布蛇身体相应位置的字符更新为` $ `
-	d.Drawer[l.X][l.Y] = " $ "
+	d.newSnakeHeader(l)
 
 	//如果下一个位置是食物,则加入身体,蛇的尾部不用去除
 	//否则需要去掉蛇身体的最后一个元素
 	if !d.IsFood(l) {
-		d.Drawer[d.Snake.Body[len(d.Snake.Body)-1].X][d.Snake.Body[len(d.Snake.Body)-1].Y] = " * "
-		d.Snake.RemoveTail()
+		d.RemoveSnakeTail()
 	} else {
 		//蛇吃掉食物以后,需要新生成一个食物
 		d.newFood()
 		//蛇吃掉食物以后,自身长度增加,运行时间间隔需要减小,以加快蛇运行的速度
 		d.refreshInterval()
 	}
-	//每运动一步,需要刷新画布,达到运行的视觉效果
-	d.Refresh()
-}
-
-// Refresh 清屏,然后打印新的画布内容
-func (d *Drawer) Refresh() {
-	d.Clean()
-	d.Print()
 }
 
 // IsFood 判断当前位置是否是食物
@@ -111,15 +136,9 @@ func (d *Drawer) IsFood(l Location) bool {
 
 // 生成食物
 func (d *Drawer) newFood() {
-	d.Food = RandomLocationWithExtra(d.Height, d.Width, d.Used)
-	d.AddUsed(d.Food, " @ ")
-}
-
-// Clean 画布清屏
-func (d *Drawer) Clean() {
-	cmd := exec.Command("clear")
-	cmd.Stdout = os.Stdout
-	cmd.Run()
+	d.Food = d.RandomUnusedLocation()
+	d.removeFromUnused(d.Food)
+	d.RefreshLocation(d.Food, FoodSTR)
 }
 
 // 根据算法更新画布的刷新时间
@@ -136,4 +155,23 @@ func (d *Drawer) refreshInterval() {
 	if d.Interval < 100*time.Millisecond {
 		d.Interval = 100 * time.Millisecond
 	}
+}
+
+// 从位置用的坐标集合中删除指定坐标
+func (d *Drawer) removeFromUnused(l Location) {
+	for i := 0; i < len(d.Unused); i++ {
+		if d.Unused[i].X == l.X && d.Unused[i].Y == l.Y {
+			d.Unused = append(d.Unused[:i], d.Unused[i:]...)
+			break
+		}
+	}
+}
+
+// 从未使用过的坐标集合中随机选取一个位置
+func (d *Drawer) RandomUnusedLocation() Location {
+	rand.Seed(time.Now().UnixMicro())
+	randLoc := rand.Intn(len(d.Unused))
+	loc := d.Unused[randLoc]
+	d.Unused = append(d.Unused[:randLoc], d.Unused[randLoc:]...)
+	return loc
 }

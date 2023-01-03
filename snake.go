@@ -16,12 +16,13 @@ type Snake struct {
 	BodyStr string
 }
 
-func (s *Snake) Init(h, w int) {
-	l := RandomLocation(h, w)
-	s.NewHeader(l)
-	s.RandomDirect()
+// Init 初始化尾部和方向
+func (s *Snake) Init() {
+	s.Tail = s.Header
+	s.randomDirect()
 }
 
+// IsBody 判断坐标点是不是蛇的身体
 func (s *Snake) IsBody(l Location) bool {
 	for i := 0; i < len(s.Body); i++ {
 		if s.Body[i].X == l.X && s.Body[i].Y == l.Y {
@@ -31,6 +32,7 @@ func (s *Snake) IsBody(l Location) bool {
 	return false
 }
 
+// IsHeader 判断坐标点是不是蛇的头部
 func (s *Snake) IsHeader(l Location) bool {
 	if s.Header.X == l.X && s.Header.Y == l.Y {
 		return true
@@ -38,16 +40,19 @@ func (s *Snake) IsHeader(l Location) bool {
 	return false
 }
 
+// NewHeader 坐标点设置为蛇新的头部
 func (s *Snake) NewHeader(l Location) {
 	s.Header = l
 	s.Body = append([]Location{l}, s.Body...)
 }
 
+// SetDirect 设置蛇运行的方向
 func (s *Snake) SetDirect(direct keyboard.Key) {
 	s.Direct = direct
 }
 
-func (s *Snake) RandomDirect() {
+// 蛇的随机运行方向
+func (s *Snake) randomDirect() {
 	rand.Seed(time.Now().Unix())
 	r := rand.Intn(3)
 	if r == 0 {
@@ -68,22 +73,33 @@ func (s *Snake) RandomDirect() {
 	}
 }
 
+// RemoveTail 更新蛇的身体和尾部坐标
 func (s *Snake) RemoveTail() {
 	s.Body = s.Body[:len(s.Body)-1]
+	s.Tail = s.Body[len(s.Body)-1]
 }
 
+// CheckDied 检查蛇是否死掉
 func (s *Snake) CheckDied(l Location, maxH int, maxW int) {
 	if l.X < 0 || l.X >= maxH || l.Y < 0 || l.Y >= maxW {
 		fmt.Println("hit the wall! died!!!")
+		s.CurrentCond()
 		os.Exit(1)
 	}
 
 	if s.IsBody(l) {
 		fmt.Println("eat your self! died!!!")
+		s.CurrentCond()
 		os.Exit(1)
 	}
 }
 
+// CurrentCond 蛇当前的情况
+func (s *Snake) CurrentCond() {
+	fmt.Printf("current length: %d\n", len(s.Body))
+}
+
+// NextLocation 蛇的运行方向上的下一个坐标
 func (s *Snake) NextLocation() Location {
 	x := -1
 	y := -1
