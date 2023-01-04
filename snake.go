@@ -14,6 +14,8 @@ type Snake struct {
 	Direct  keyboard.Key
 	Tail    Location
 	BodyStr string
+	MaxH    int
+	MaxW    int
 }
 
 // InitTail Init 初始化尾部和方向
@@ -21,8 +23,8 @@ func (s *Snake) InitTail() {
 	s.Tail = s.Header
 }
 
-func (s *Snake) InitDirect(h, w int) {
-	s.randomDirect(h, w)
+func (s *Snake) InitDirect() {
+	s.randomDirect()
 }
 
 // IsBody 判断坐标点是不是蛇的身体
@@ -55,24 +57,24 @@ func (s *Snake) SetDirect(direct keyboard.Key) {
 }
 
 // 蛇的随机运行方向
-func (s *Snake) randomDirect(h, w int) {
+func (s *Snake) randomDirect() {
 
-	if s.Header.X <= 2 && h>>2 > s.Header.X {
+	if s.Header.X <= 2 && s.MaxH>>2 > s.Header.X {
 		s.Direct = keyboard.KeyArrowDown
 		return
 	}
 
-	if s.Header.Y <= 2 && w>>2 > s.Header.Y {
+	if s.Header.Y <= 2 && s.MaxH>>2 > s.Header.Y {
 		s.Direct = keyboard.KeyArrowRight
 		return
 	}
 
-	if s.Header.X >= h-2 && h>>2 < s.Header.X {
+	if s.Header.X >= s.MaxH-2 && s.MaxH>>2 < s.Header.X {
 		s.Direct = keyboard.KeyArrowUp
 		return
 	}
 
-	if s.Header.Y >= w-2 && w>>2 < s.Header.Y {
+	if s.Header.Y >= s.MaxW-2 && s.MaxW>>2 < s.Header.Y {
 		s.Direct = keyboard.KeyArrowLeft
 		return
 	}
@@ -104,8 +106,8 @@ func (s *Snake) RemoveTail() {
 }
 
 // CheckDied 检查蛇是否死掉
-func (s *Snake) CheckDied(l Location, maxH int, maxW int) {
-	if l.X < 0 || l.X >= maxH || l.Y < 0 || l.Y >= maxW {
+func (s *Snake) CheckDied(l Location) {
+	if l.X < 0 || l.X >= s.MaxH || l.Y < 0 || l.Y >= s.MaxW {
 		fmt.Println("hit the wall! died!!!")
 		s.CurrentCond()
 		os.Exit(1)
@@ -137,4 +139,16 @@ func (s *Snake) NextLocation() Location {
 		x, y = s.Header.X, s.Header.Y-1
 	}
 	return Location{x, y}
+}
+
+// Run 蛇运行,每次蛇头的位置都会变换到新位置
+func (s *Snake) Run() {
+	//贪吃蛇蛇头的下一个位置
+	l := s.NextLocation()
+
+	//判断下一个位置是否是正常的位置,如果是撞墙或者是吃到自己的身体,则死亡,游戏结束
+	s.CheckDied(l)
+
+	//新位置成为蛇头
+	s.NewHeader(l)
 }

@@ -56,13 +56,15 @@ func (d *Drawer) Init() {
 	//初始画布刷新时间为800ms
 	d.Interval = time.Millisecond * 800
 
-	//初始化蛇结构
-	d.Snake = &Snake{}
+	//初始化蛇结构体
+	d.Snake = &Snake{
+		MaxH: d.Height,
+		MaxW: d.Width,
+	}
 	//初始化蛇
-	l := d.RandomUnusedLocation()
-	d.newSnakeHeader(l)
+	d.Snake.InitDirect()
+	d.initSnakeHeader()
 	d.Snake.InitTail()
-	d.Snake.InitDirect(d.Height, d.Width)
 
 	//蛇的身体放入画布已经使用的位置集合
 	d.removeFromUnused(d.Snake.Header)
@@ -88,7 +90,8 @@ func (d *Drawer) RemoveSnakeTail() {
 }
 
 // 新位置更新为蛇头
-func (d *Drawer) newSnakeHeader(l Location) {
+func (d *Drawer) initSnakeHeader() {
+	l := d.RandomUnusedLocation()
 	d.removeFromUnused(l)
 	d.Snake.NewHeader(l)
 	d.RefreshLocation(l, SnakeBody)
@@ -105,18 +108,13 @@ func (d *Drawer) Clear() {
 
 // Run 运行
 func (d *Drawer) Run() {
-	//贪吃蛇蛇头的下一个位置
-	l := d.Snake.NextLocation()
-
-	//判断下一个位置是否是正常的位置,如果是撞墙或者是吃到自己的身体,则死亡,游戏结束
-	d.Snake.CheckDied(l, d.Height, d.Width)
-
-	//新位置成为蛇头
-	d.newSnakeHeader(l)
+	//蛇运行
+	d.Snake.Run()
+	d.RefreshLocation(d.Snake.Header, SnakeBody)
 
 	//如果下一个位置是食物,则加入身体,蛇的尾部不用去除
 	//否则需要去掉蛇身体的最后一个元素
-	if !d.IsFood(l) {
+	if !d.IsFood(d.Snake.Header) {
 		d.RemoveSnakeTail()
 	} else {
 		//蛇吃掉食物以后,需要新生成一个食物
@@ -172,7 +170,7 @@ func (d *Drawer) removeFromUnused(l Location) {
 func (d *Drawer) RandomUnusedLocation() Location {
 	rand.Seed(time.Now().UnixMicro())
 	randLoc := rand.Intn(len(d.Unused))
-	loc := d.Unused[randLoc]
+	l := d.Unused[randLoc]
 	d.Unused = append(d.Unused[:randLoc], d.Unused[randLoc:]...)
-	return loc
+	return l
 }
