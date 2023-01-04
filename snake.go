@@ -16,10 +16,13 @@ type Snake struct {
 	BodyStr string
 }
 
-// Init 初始化尾部和方向
-func (s *Snake) Init() {
+// InitTail Init 初始化尾部和方向
+func (s *Snake) InitTail() {
 	s.Tail = s.Header
-	s.randomDirect()
+}
+
+func (s *Snake) InitDirect(h, w int) {
+	s.randomDirect(h, w)
 }
 
 // IsBody 判断坐标点是不是蛇的身体
@@ -52,7 +55,28 @@ func (s *Snake) SetDirect(direct keyboard.Key) {
 }
 
 // 蛇的随机运行方向
-func (s *Snake) randomDirect() {
+func (s *Snake) randomDirect(h, w int) {
+
+	if s.Header.X <= 2 && h>>2 > s.Header.X {
+		s.Direct = keyboard.KeyArrowDown
+		return
+	}
+
+	if s.Header.Y <= 2 && w>>2 > s.Header.Y {
+		s.Direct = keyboard.KeyArrowRight
+		return
+	}
+
+	if s.Header.X >= h-2 && h>>2 < s.Header.X {
+		s.Direct = keyboard.KeyArrowUp
+		return
+	}
+
+	if s.Header.Y >= w-2 && w>>2 < s.Header.Y {
+		s.Direct = keyboard.KeyArrowLeft
+		return
+	}
+
 	rand.Seed(time.Now().Unix())
 	r := rand.Intn(3)
 	if r == 0 {

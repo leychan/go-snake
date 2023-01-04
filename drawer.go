@@ -61,7 +61,8 @@ func (d *Drawer) Init() {
 	//初始化蛇
 	l := d.RandomUnusedLocation()
 	d.newSnakeHeader(l)
-	d.Snake.Init()
+	d.Snake.InitTail()
+	d.Snake.InitDirect(d.Height, d.Width)
 
 	//蛇的身体放入画布已经使用的位置集合
 	d.removeFromUnused(d.Snake.Header)
@@ -82,18 +83,18 @@ func (d *Drawer) RefreshLocation(l Location, c string) {
 // RemoveSnakeTail 去掉当前贪吃蛇的尾部
 func (d *Drawer) RemoveSnakeTail() {
 	d.RefreshLocation(d.Snake.Tail, DrawerSTR)
-	d.Snake.RemoveTail()
 	d.Unused = append(d.Unused, d.Snake.Tail)
+	d.Snake.RemoveTail()
 }
 
 // 新位置更新为蛇头
 func (d *Drawer) newSnakeHeader(l Location) {
-	d.RefreshLocation(l, SnakeBody)
-	d.Snake.NewHeader(l)
 	d.removeFromUnused(l)
+	d.Snake.NewHeader(l)
+	d.RefreshLocation(l, SnakeBody)
 }
 
-// 清除当前屏幕
+// Clear 清除当前屏幕
 func (d *Drawer) Clear() {
 	cmd := exec.Command("/bin/bash", "-c", "tput cup 0 0 && tput ed")
 	cmd.Stdout = os.Stdout
@@ -167,7 +168,7 @@ func (d *Drawer) removeFromUnused(l Location) {
 	}
 }
 
-// 从未使用过的坐标集合中随机选取一个位置
+// RandomUnusedLocation 从未使用过的坐标集合中随机选取一个位置
 func (d *Drawer) RandomUnusedLocation() Location {
 	rand.Seed(time.Now().UnixMicro())
 	randLoc := rand.Intn(len(d.Unused))
